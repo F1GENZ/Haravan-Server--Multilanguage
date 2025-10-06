@@ -30,6 +30,6 @@ jobs:
             npm install
             npm run build
 
-            pm2 restart haravan-multilanguage || pm2 start dist/main.js --name haravan-multilanguage --watch --env production -- --port=3000
+            pm2 restart haravan-multilanguage || pm2 start dist/main.js --name haravan-multilanguage --watch --env production -- --port=3010
             pm2 save
           EOF
