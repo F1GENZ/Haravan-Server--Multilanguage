@@ -10,10 +10,10 @@ const allowedOrigins = [
   'ionic://localhost',
   'http://localhost', 
   'http://localhost:5173',
-  'https://haravan-client--faq.pages.dev',
-  'https://haravan-client--faq.pages.dev/',
-  'https://haravan.faq.f1genz.com',
-  'https://haravan.faq.f1genz.com/'
+  'https://haravan-client--multilanguage.pages.dev',
+  'https://haravan-client--multilanguage.pages.dev/',
+  'https://multilanguage.f1genz.com',
+  'https://multilanguage.f1genz.com/'
 ];
  
 async function bootstrap() {
