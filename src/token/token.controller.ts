@@ -5,12 +5,12 @@ import { TokenService } from './token.service';
 export class TokenController {
   constructor(private readonly tokenService: TokenService) {}
 
-  @Get('trial')
+  @Get('trial') 
   async getTrialInfo(@Query('shop') shop: string) {
     if (!shop) {
       return {
         success: false,
-        message: 'Shop domain is required'
+        message: 'Shop domain is required!!'
       };
     }
 
