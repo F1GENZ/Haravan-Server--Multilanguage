@@ -52,9 +52,9 @@ export class HaravanService {
       if (orgid === undefined || orgid === null || orgid.trim() === '' || orgid === "null") {
         return await this.buildUrlInstall();
       } else {
-        const checkOrgidExists = await this.redisService.has(`haravan:multilanguage:app_subscriptions:${orgid}`);
+        const checkOrgidExists = await this.redisService.has(`haravan:multilanguage:app_install:${orgid}`);
         if (!checkOrgidExists) {
-          return await this.buildUrlInstall();
+          return await this.buildUrlInstall(); 
         }
       }
       return this.getHaravanConfig().frontEndUrl;
