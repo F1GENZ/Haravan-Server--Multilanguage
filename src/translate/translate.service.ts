@@ -35,6 +35,8 @@ export class TranslateService {
     try {
       const openai = new OpenAI({
         apiKey: apiKey,
+        timeout: 60000,
+        maxRetries: 2
       });
 
       const targetLanguageName = this.LANGUAGE_NAMES[targetLanguage] || targetLanguage;
@@ -46,7 +48,7 @@ export class TranslateService {
         : mainPrompt;
 
       const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: "gpt-4o",
         messages: [
           {
             role: "system",
@@ -60,7 +62,9 @@ export class TranslateService {
         max_completion_tokens: 2000
       });
 
-      return completion.choices[0].message.content.trim();
+      const result = completion.choices[0]?.message?.content?.trim() || '';
+      
+      return result;
     } catch (error) {
       this.handleOpenAIError(error);
     }
@@ -79,44 +83,38 @@ export class TranslateService {
     try {
       const openai = new OpenAI({
         apiKey: apiKey,
+        timeout: 60000,
+        maxRetries: 2
       });
 
       const targetLanguageName = this.LANGUAGE_NAMES[targetLanguage] || targetLanguage;
       
-      const mainPrompt = `You are a professional translator. Translate ONLY the text content inside HTML tags to ${targetLanguageName}.
-
-CRITICAL RULES:
-1. DO NOT translate HTML tags, attributes, or element names
-2. DO NOT add any explanations or comments
-3. ONLY translate the visible text content
-4. Keep all HTML structure, tags, and attributes exactly as they are
-5. Preserve spacing, line breaks, and formatting
-
-Example:
-Input: <p>Hello <strong>world</strong></p>
-Output: <p>Xin chào <strong>thế giới</strong></p> (if translating to Vietnamese)`;
+      const mainPrompt = `Translate the following HTML content to ${targetLanguageName}. Translate only the text inside HTML tags, keep all HTML tags and attributes unchanged. Return only the translated HTML without any explanation or prefix.`;
       
       const fullPrompt = customPrompt && customPrompt.trim() 
-        ? `${mainPrompt}\n\nAdditional requirements: ${customPrompt}` 
+        ? `${mainPrompt} ${customPrompt}` 
         : mainPrompt;
 
       const completion = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [
           {
-            role: "system",
-            content: fullPrompt
-          },
-          {
             role: "user",
-            content: html
+            content: `${fullPrompt}\n\n${html}`
           }
         ],
-        temperature: 0.1,
+        temperature: 0.3,
         max_completion_tokens: 4000
       });
 
-      return completion.choices[0].message.content.trim();
+      let result = completion.choices[0]?.message?.content?.trim() || '';
+      
+      // Remove "HTML:" prefix if GPT added it
+      if (result.startsWith('HTML:')) {
+        result = result.substring(5).trim();
+      }
+      
+      return result;
     } catch (error) {
       this.handleOpenAIError(error);
     }
