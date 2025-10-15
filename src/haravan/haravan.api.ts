@@ -150,7 +150,7 @@ export class HaravanAPIService {
         queryString = `https://apis.haravan.com/com/products/${objectid}/metafields.json`;
         break;
       case "collection":
-        queryString = `https://apis.haravan.com/com/collections/${objectid}/metafields.json`;
+        queryString = `https://apis.haravan.com/com/custom_collections/${objectid}/metafields.json`;
         break;
       default:
         queryString = `https://apis.haravan.com/com/${type}s/${objectid}/metafields.json`;
@@ -213,7 +213,7 @@ export class HaravanAPIService {
     if (params.page) queryParams.append('page', params.page);
     if (params.published_status) queryParams.append('published_status', params.published_status);
     
-    const url = `https://apis.haravan.com/com/collections.json${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
+    const url = `https://apis.haravan.com/com/custom_collections.json${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
     const response = await axios.get(url, {
       headers: { 'Authorization': `Bearer ${token}` }
     });
@@ -224,17 +224,17 @@ export class HaravanAPIService {
 
   async getCollection(token: string, id: string) {
     if (!token) throw new BadRequestException("Token is required");
-    const response = await axios.get(`https://apis.haravan.com/com/collections/${id}.json`, {
+    const response = await axios.get(`https://apis.haravan.com/com/custom_collections/${id}.json`, {
       headers: { 'Authorization': `Bearer ${token}` }
     });
 
-    if (!response.data || !response.data.collection) throw new BadRequestException("Failed to fetch collection");
-    return response.data.collection;
+    if (!response.data || !response.data.custom_collection) throw new BadRequestException("Failed to fetch collection");
+    return response.data.custom_collection;
   }
 
   async createCollection(token: string, values: any) {
     if (!token) throw new BadRequestException("Token is required");
-    const response = await axios.post(`https://apis.haravan.com/com/collections.json`, values, {
+    const response = await axios.post(`https://apis.haravan.com/com/custom_collections.json`, values, {
       headers: { 
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
@@ -247,7 +247,7 @@ export class HaravanAPIService {
 
   async updateCollection(token: string, id: string, values: any) {
     if (!token) throw new BadRequestException("Token is required");
-    const response = await axios.put(`https://apis.haravan.com/com/collections/${id}.json`, values, {
+    const response = await axios.put(`https://apis.haravan.com/com/custom_collections/${id}.json`, values, {
       headers: { 
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
@@ -260,7 +260,7 @@ export class HaravanAPIService {
 
   async deleteCollection(token: string, id: string) {
     if (!token) throw new BadRequestException("Token is required");
-    const response = await axios.delete(`https://apis.haravan.com/com/collections/${id}.json`, {
+    const response = await axios.delete(`https://apis.haravan.com/com/custom_collections/${id}.json`, {
       headers: { 'Authorization': `Bearer ${token}` }
     });
 
