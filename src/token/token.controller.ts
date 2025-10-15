@@ -11,7 +11,7 @@ export class TokenController {
       return {
         success: false,
         message: 'Shop domain is required!!'
-      };
+      }; 
     }
 
     const trialInfo = await this.tokenService.getTrialInfo(shop);

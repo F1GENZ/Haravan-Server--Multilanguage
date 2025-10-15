@@ -9,6 +9,7 @@ import { MetafieldModule } from './metafield/metafield.module';
 import { DataModule } from './data/data.module';
 import { TokenModule } from './token/token.module';
 import { QueueModule } from './queue/queue.module';
+import { TranslateModule } from './translate/translate.module';
 
 @Module({ 
   imports: [
@@ -20,6 +21,7 @@ import { QueueModule } from './queue/queue.module';
     MetafieldModule,
     DataModule,
     TokenModule,
+    TranslateModule,
   ],
   controllers: [AppController],
   providers: [AppService],
