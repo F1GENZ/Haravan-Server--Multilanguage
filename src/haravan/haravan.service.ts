@@ -77,18 +77,23 @@ export class HaravanService {
       // Get app data to check status
       const appData = await this.redisService.get(`haravan:multilanguage:app_install:${cleanOrgid}`);
       
-      console.log('🔍 Redis check for orgid:', cleanOrgid, '- exists:', !!appData);
+      console.log('🔍 Redis check for orgid:', cleanOrgid, '- exists:', !!appData, '- status:', appData?.status);
       
       // Conditions to force re-install:
       // 1. App data not found
       // 2. Status is 'needs_reinstall' (marked by cron/guard)
       // 3. Status is 'unactive'
-      if (!appData || appData.status === 'needs_reinstall' || appData.status === 'unactive') {
-        console.log(`📝 App needs install/reinstall (Status: ${appData?.status}), redirecting to install`);
+      // 4. Token has expired (token_expires_at < now)
+      // 5. No token_expires_at field (old data, force reinstall to get new token)
+      const now = Date.now();
+      const tokenExpired = !appData?.token_expires_at || appData.token_expires_at < now;
+      
+      if (!appData || appData.status === 'needs_reinstall' || appData.status === 'unactive' || tokenExpired) {
+        console.log(`📝 App needs install/reinstall (Status: ${appData?.status}, TokenExpired: ${tokenExpired}), redirecting to install`);
         return await this.buildUrlInstall(); 
       }
       
-      // App installed and active, redirect to frontend
+      // App installed and active with valid token, redirect to frontend
       console.log('✅ Orgid found and active, redirecting to frontend');
       return `${this.getHaravanConfig().frontEndUrl}?orgid=${cleanOrgid}`;
       
