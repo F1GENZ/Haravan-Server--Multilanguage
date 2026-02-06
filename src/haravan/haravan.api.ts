@@ -40,11 +40,18 @@ export class HaravanAPIService {
   }
 
   async getProduct(access_token, product_id) {
-    const response = await axios.get(`https://apis.haravan.com/com/products/${product_id}.json`, {
-      headers: { 'Authorization': `Bearer ${access_token}` }
-    });
-    if (!response.data || !response.data.product) throw new BadRequestException("Failed to fetch product");
-    return response.data.product;
+    try {
+      const response = await axios.get(`https://apis.haravan.com/com/products/${product_id}.json`, {
+        headers: { 'Authorization': `Bearer ${access_token}` }
+      });
+      if (!response.data || !response.data.product) throw new BadRequestException("Failed to fetch product");
+      return response.data.product;
+    } catch (error) {
+      if (error.response?.status === 401) {
+        throw new BadRequestException("Token expired or invalid. Please re-login.");
+      }
+      throw error;
+    }
   }
 
   async importScriptTags(access_token) {
@@ -272,31 +279,45 @@ export class HaravanAPIService {
   async getProducts(token: string, params: any = {}) {
     if (!token) throw new BadRequestException("Token is required");
     
-    const queryParams = new URLSearchParams();
-    if (params.limit) queryParams.append('limit', params.limit);
-    if (params.page) queryParams.append('page', params.page);
-    if (params.published_status) queryParams.append('published_status', params.published_status);
-    if (params.collection_id) queryParams.append('collection_id', params.collection_id);
-    
-    const url = `https://apis.haravan.com/com/products.json${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
-    const response = await axios.get(url, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
+    try {
+      const queryParams = new URLSearchParams();
+      if (params.limit) queryParams.append('limit', params.limit);
+      if (params.page) queryParams.append('page', params.page);
+      if (params.published_status) queryParams.append('published_status', params.published_status);
+      if (params.collection_id) queryParams.append('collection_id', params.collection_id);
+      
+      const url = `https://apis.haravan.com/com/products.json${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
+      const response = await axios.get(url, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
 
-    if (!response.data) throw new BadRequestException("Failed to fetch products");
-    return response.data;
+      if (!response.data) throw new BadRequestException("Failed to fetch products");
+      return response.data;
+    } catch (error) {
+      if (error.response?.status === 401) {
+        throw new BadRequestException("Token expired or invalid. Please re-login.");
+      }
+      throw error;
+    }
   }
 
   async getProductsCount(token: string) {
     if (!token) throw new BadRequestException("Token is required");
     
-    const url = `https://apis.haravan.com/com/products/count.json`;
-    const response = await axios.get(url, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
+    try {
+      const url = `https://apis.haravan.com/com/products/count.json`;
+      const response = await axios.get(url, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
 
-    if (!response.data) throw new BadRequestException("Failed to fetch products count");
-    return response.data;
+      if (!response.data) throw new BadRequestException("Failed to fetch products count");
+      return response.data;
+    } catch (error) {
+      if (error.response?.status === 401) {
+        throw new BadRequestException("Token expired or invalid. Please re-login.");
+      }
+      throw error;
+    }
   }
 
   async createProduct(token: string, values: any) {

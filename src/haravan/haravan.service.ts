@@ -187,13 +187,17 @@ export class HaravanService {
       // Initialize quota for new shops
       const defaultQuota = parseInt(this.config.get('TRANSLATION_QUOTA_PER_SHOP') || '500', 10);
       
+      // expires_in is in seconds, convert to milliseconds
+      const tokenExpiresAt = Date.now() + (expires_in * 1000);
+      
       const tokenData = {
         access_token,
         refresh_token, 
+        token_expires_at: tokenExpiresAt,
         orgid,
         orgsub,
         status: existingApp ? existingApp.status : 'trial',
-        expires_at: existingApp ? existingApp.expires_at : Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 days
+        expires_at: existingApp ? existingApp.expires_at : Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 days trial
         // Quota: keep existing or initialize new
         quota_remaining: existingApp?.quota_remaining ?? defaultQuota,
         quota_total: existingApp?.quota_total ?? defaultQuota,
@@ -227,19 +231,25 @@ export class HaravanService {
       })
       if (!response.data) throw new BadRequestException();
       const { access_token, expires_in, refresh_token } = response.data;
-      const tokenData = {
-        access_token,
-        refresh_token,
-        expires_at: Date.now() + expires_in,
-      };
+      
+      // expires_in is in seconds, convert to milliseconds
+      const tokenExpiresAt = Date.now() + (expires_in * 1000);
+      
       const existsApp = await this.redisService.get(`haravan:multilanguage:app_install:${orgid}`);
       if (!existsApp) {
+        const tokenData = {
+          access_token,
+          refresh_token,
+          token_expires_at: tokenExpiresAt,
+        };
         await this.redisService.set(`haravan:multilanguage:app_install:${orgid}`, tokenData, 30 * 24 * 60 * 60); // 30 days
       } else {
         existsApp.access_token = access_token;
         existsApp.refresh_token = refresh_token;
+        existsApp.token_expires_at = tokenExpiresAt;
         await this.redisService.set(`haravan:multilanguage:app_install:${orgid}`, existsApp, 30 * 24 * 60 * 60); // 30 days
       }
+      console.log(`✅ Token refreshed for orgid=${orgid}, expires in ${expires_in}s`);
       return access_token;
     } catch (error) {
       console.log(error);

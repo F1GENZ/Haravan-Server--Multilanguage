@@ -23,27 +23,32 @@ export class ShopAuthGuard implements CanActivate {
         throw new UnauthorizedException('Session expired, please login again');
       }
 
-      // Check if token needs refresh (expires in less than 5 minutes)
-      const FIVE_MINUTES = 5 * 60 * 1000;
-      const needsRefresh = tokenData.expires_at && (tokenData.expires_at - Date.now() < FIVE_MINUTES);
+      // Check if token needs refresh:
+      // 1. No expires_at tracked (old token format)
+      // 2. Token expires in less than 30 minutes
+      const THIRTY_MINUTES = 30 * 60 * 1000;
+      const now = Date.now();
+      const needsRefresh = !tokenData.token_expires_at || 
+                          (tokenData.token_expires_at && (tokenData.token_expires_at - now < THIRTY_MINUTES));
       
       if (needsRefresh && tokenData.refresh_token) {
-        this.logger.log(`Token expiring soon for orgid: ${orgid}, refreshing...`);
+        this.logger.log(`🔄 Token needs refresh for orgid: ${orgid}`);
         try {
           const newToken = await this.haravanService.refreshToken(orgid, tokenData.refresh_token);
           if (newToken) {
             req.token = newToken;
-            this.logger.log(`Token refreshed successfully for orgid: ${orgid}`);
-          } else {
-            req.token = tokenData.access_token;
+            req.orgid = orgid;
+            this.logger.log(`✅ Token refreshed successfully for orgid: ${orgid}`);
+            return true;
           }
         } catch (refreshError) {
-          this.logger.warn(`Failed to refresh token for orgid: ${orgid}, using existing token`);
-          req.token = tokenData.access_token;
+          this.logger.warn(`⚠️ Failed to refresh token for orgid: ${orgid}: ${refreshError.message}`);
+          // If refresh fails, try with existing token (might still work)
         }
-      } else {
-        req.token = tokenData.access_token;
       }
+      
+      req.token = tokenData.access_token;
+      req.orgid = orgid;
       
     } catch (error) {
       if (error instanceof UnauthorizedException || error instanceof BadRequestException) {
@@ -54,4 +59,3 @@ export class ShopAuthGuard implements CanActivate {
     return true;
   }
 }
-
