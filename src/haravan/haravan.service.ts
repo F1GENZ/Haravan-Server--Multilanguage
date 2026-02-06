@@ -82,10 +82,10 @@ export class HaravanService {
       // 1. App data not found
       // 2. Status is 'needs_reinstall' (marked by cron/guard)
       // 3. Status is 'unactive'
-      // 4. Token has expired (token_expires_at < now)
-      // 5. No token_expires_at field (old data, force reinstall to get new token)
+      // 4. Token has expired (token_expires_at exists AND < now)
       const now = Date.now();
-      const tokenExpired = !appData?.token_expires_at || appData.token_expires_at < now;
+      // Only check expiry if field exists (legacy data without this field is allowed)
+      const tokenExpired = appData?.token_expires_at && appData.token_expires_at < now;
       
       if (!appData || appData.status === 'needs_reinstall' || appData.status === 'unactive' || tokenExpired) {
         console.log(`📝 App needs install/reinstall (Status: ${appData?.status}, TokenExpired: ${tokenExpired}), redirecting to install`);
