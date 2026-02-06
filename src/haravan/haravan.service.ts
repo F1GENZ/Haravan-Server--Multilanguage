@@ -194,10 +194,17 @@ export class HaravanService {
       // if (!existingApp) await this.haravanAPIService.subscribeWebhook(access_token);
 
       // Initialize quota for new shops
-      const defaultQuota = parseInt(this.config.get('TRANSLATION_QUOTA_PER_SHOP') || '500', 10);
+      // Trial = 10, Paid plans get more from env config
+      const trialQuota = 10;
+      const paidQuota = parseInt(this.config.get('TRANSLATION_QUOTA_PER_SHOP') || '500', 10);
       
       // expires_in is in seconds, convert to milliseconds
       const tokenExpiresAt = Date.now() + (expires_in * 1000);
+      
+      // Determine quota: keep existing if reinstall, otherwise 10 for trial
+      const isNewInstall = !existingApp;
+      const quotaToUse = isNewInstall ? trialQuota : (existingApp.quota_remaining ?? existingApp.quota_total ?? paidQuota);
+      const quotaTotal = isNewInstall ? trialQuota : (existingApp.quota_total ?? paidQuota);
       
       const tokenData = {
         access_token,
@@ -207,14 +214,14 @@ export class HaravanService {
         orgsub,
         status: existingApp ? existingApp.status : 'trial',
         expires_at: existingApp ? existingApp.expires_at : Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 days trial
-        // Quota: keep existing or initialize new
-        quota_remaining: existingApp?.quota_remaining ?? defaultQuota,
-        quota_total: existingApp?.quota_total ?? defaultQuota,
+        // Quota: keep existing or initialize new (trial = 10)
+        quota_remaining: quotaToUse,
+        quota_total: quotaTotal,
       }; 
       await this.redisService.set(`haravan:multilanguage:app_install:${orgid}`, tokenData, 30 * 24 * 60 * 60); // 30 days
       
       if (!existingApp) {
-        console.log(`✅ [QUOTA] Initialized ${defaultQuota} translations for orgid=${orgid}`);
+        console.log(`✅ [QUOTA] Initialized ${trialQuota} translations for orgid=${orgid}`);
       }
       
       res.redirect(`${hrvConfig.frontEndUrl}?orgid=${orgid}`);
