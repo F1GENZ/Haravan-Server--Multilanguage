@@ -1,9 +1,8 @@
-import { BadRequestException } from '@nestjs/common/exceptions';
+import { BadRequestException, UnauthorizedException } from '@nestjs/common/exceptions';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { RedisService } from '../redis/redis.service';
 import axios from 'axios';
-import { console } from 'inspector';
 
 @Injectable()
 export class HaravanAPIService { 
@@ -48,7 +47,7 @@ export class HaravanAPIService {
       return response.data.product;
     } catch (error) {
       if (error.response?.status === 401) {
-        throw new BadRequestException("Token expired or invalid. Please re-login.");
+        throw new UnauthorizedException("Token expired or invalid. Please re-login.");
       }
       throw error;
     }
@@ -295,7 +294,7 @@ export class HaravanAPIService {
       return response.data;
     } catch (error) {
       if (error.response?.status === 401) {
-        throw new BadRequestException("Token expired or invalid. Please re-login.");
+        throw new UnauthorizedException("Token expired or invalid. Please re-login.");
       }
       throw error;
     }
@@ -314,7 +313,7 @@ export class HaravanAPIService {
       return response.data;
     } catch (error) {
       if (error.response?.status === 401) {
-        throw new BadRequestException("Token expired or invalid. Please re-login.");
+        throw new UnauthorizedException("Token expired or invalid. Please re-login.");
       }
       throw error;
     }
