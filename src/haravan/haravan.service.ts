@@ -122,7 +122,9 @@ export class HaravanService {
       const { id_token } = response.data;
       if (!id_token) throw new Error("No id_token returned");
       
+      console.log('🔑 Login: id_token received:', id_token ? `${id_token.substring(0, 50)}...` : 'MISSING');
       const decodedIDToken = jwt.decode(id_token) as Record<string, any>;
+      console.log('🔍 Login: Decoded id_token:', JSON.stringify(decodedIDToken, null, 2));
       const { orgid } = decodedIDToken;
       console.log('👤 Login callback for orgid:', orgid);
       
@@ -146,22 +148,28 @@ export class HaravanService {
         }
         
         console.log('🚀 Redirecting to frontend URL');
-        // If called via AJAX, return JSON
-        if (req.xhr || req.headers.accept?.includes('application/json')) {
-           return res.json({ url: `${hrvConfig.frontEndUrl}?orgid=${orgid}` });
+        const frontendUrl = `${hrvConfig.frontEndUrl}?orgid=${orgid}`;
+        // Check if request expects JSON (Axios sets Accept: application/json)
+        const acceptHeader = req.headers.accept || '';
+        if (acceptHeader.includes('application/json')) {
+           console.log('📤 Returning JSON response');
+           return res.json({ url: frontendUrl });
         }
-        res.redirect(`${hrvConfig.frontEndUrl}?orgid=${orgid}`);
+        console.log('🔀 Performing redirect');
+        res.redirect(frontendUrl);
       } else {
         console.log('⚠️ App NOT installed, returning INSTALL URL');
         const installUrl = await this.buildUrlInstall();
-        if (req.xhr || req.headers.accept?.includes('application/json')) {
+        const acceptHeader = req.headers.accept || '';
+        if (acceptHeader.includes('application/json')) {
            return res.json({ url: installUrl });
         }
         res.redirect(installUrl);
       }
     } catch (error) {
       console.error('❌ Login callback error:', error.message);
-      if (req.xhr || req.headers.accept?.includes('application/json')) {
+      const acceptHeader = req.headers.accept || '';
+      if (acceptHeader.includes('application/json')) {
          return res.status(400).json({ error: error.message });
       }
       res.redirect(`${hrvConfig.frontEndUrl}/error?message=${encodeURIComponent(error.message)}`);
