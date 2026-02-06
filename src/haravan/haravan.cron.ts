@@ -18,7 +18,7 @@ export class HaravanCronService {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
-  @Cron(CronExpression.EVERY_DAY_AT_3AM)
+  @Cron(CronExpression.EVERY_12_HOURS)
   async handleCron() {
     // Prevent concurrent runs
     if (this.isRunning) {
