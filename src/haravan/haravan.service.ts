@@ -72,25 +72,47 @@ export class HaravanService {
       return await this.buildUrlLogin(); 
     }
 
-    const cleanOrgid = rawOrgid.replace(/['"]+/g, '');
+    const cleanOrgid = rawOrgid.replace(/['\"]+/g, '');
     try {
       // Get app data to check status
       const appData = await this.redisService.get(`haravan:multilanguage:app_install:${cleanOrgid}`);
       
       console.log('🔍 Redis check for orgid:', cleanOrgid, '- exists:', !!appData, '- status:', appData?.status);
       
-      // Conditions to force re-install:
-      // 1. App data not found
-      // 2. Status is 'needs_reinstall' (marked by cron/guard)
-      // 3. Status is 'unactive'
-      // 4. Token has expired (token_expires_at exists AND < now)
-      const now = Date.now();
-      // Only check expiry if field exists (legacy data without this field is allowed)
-      const tokenExpired = appData?.token_expires_at && appData.token_expires_at < now;
+      // Condition 1: App not found → redirect to login to identify shop
+      if (!appData) {
+        console.log('📝 App not found, redirecting to LOGIN');
+        return await this.buildUrlLogin();
+      }
       
-      if (!appData || appData.status === 'needs_reinstall' || appData.status === 'unactive' || tokenExpired) {
-        console.log(`📝 App needs install/reinstall (Status: ${appData?.status}, TokenExpired: ${tokenExpired}), redirecting to install`);
-        return await this.buildUrlInstall(); 
+      // Condition 2: App marked for reinstall or unactive → redirect to install
+      if (appData.status === 'needs_reinstall' || appData.status === 'unactive') {
+        console.log(`📝 App status is ${appData.status}, redirecting to install`);
+        return await this.buildUrlInstall();
+      }
+      
+      // Condition 3: Token expired → try refresh first, only install if refresh fails
+      const now = Date.now();
+      const tokenExpired = appData.token_expires_at && appData.token_expires_at < now;
+      
+      if (tokenExpired) {
+        console.log('⏰ Token expired, attempting refresh...');
+        
+        if (appData.refresh_token) {
+          try {
+            const newToken = await this.refreshToken(cleanOrgid, appData.refresh_token);
+            if (newToken) {
+              console.log('✅ Token refreshed successfully, redirecting to frontend');
+              return `${this.getHaravanConfig().frontEndUrl}?orgid=${cleanOrgid}`;
+            }
+          } catch (refreshError) {
+            console.warn('⚠️ Token refresh failed:', refreshError.message);
+          }
+        }
+        
+        // Refresh failed or no refresh_token → need to re-authenticate
+        console.log('📝 Token refresh failed, redirecting to login');
+        return await this.buildUrlLogin();
       }
       
       // App installed and active with valid token, redirect to frontend
