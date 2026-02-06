@@ -65,10 +65,11 @@ export class HaravanService {
     // Handle array case
     const rawOrgid = Array.isArray(orgid) ? orgid.find(o => o && o !== 'null' && o !== 'undefined' && o !== '') : orgid;
     
-    // If no valid orgid, redirect to install
+    // If no valid orgid, redirect to LOGIN (not install) to get id_token with orgid
+    // The login callback will check if shop exists in Redis
     if (!rawOrgid || rawOrgid === 'null' || rawOrgid === 'undefined' || rawOrgid === '') {
-      console.log('📝 No valid orgid provided, redirecting to install');
-      return await this.buildUrlInstall(); 
+      console.log('📝 No valid orgid provided, redirecting to LOGIN to identify shop');
+      return await this.buildUrlLogin(); 
     }
 
     const cleanOrgid = rawOrgid.replace(/['"]+/g, '');
