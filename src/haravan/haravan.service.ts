@@ -43,25 +43,123 @@ export class HaravanService {
       `&scope=${hrvConfig.scopeInstall}` +
       `&client_id=${hrvConfig.clientId}` +
       `&redirect_uri=${hrvConfig.installCallbackUrl}` +
+      `&response_mode=query` + 
       `&nonce=${hrvConfig.nonce}`;
     return url;
-  }  
+  }
 
-  async loginApp(orgid: string): Promise<string> {
+  private async buildUrlLogin() {
+    const hrvConfig = this.getHaravanConfig();
+    const url =
+      `${hrvConfig.urlAuthorize}` +
+      `?response_type=${hrvConfig.responseType}` +
+      `&scope=${hrvConfig.scopeLogin}` +
+      `&client_id=${hrvConfig.clientId}` +
+      `&redirect_uri=${hrvConfig.loginCallbackUrl}` +
+      `&response_mode=query` +
+      `&nonce=${hrvConfig.nonce}`;
+    return url;
+  }
+
+  async loginApp(orgid: string | string[]): Promise<string> {
+    // Handle array case (when orgid is passed multiple times)
+    let cleanOrgid = Array.isArray(orgid) ? orgid.find(o => o && o !== 'null' && o !== 'undefined') : orgid;
+    cleanOrgid = cleanOrgid?.trim() || '';
+    
+    console.log('🔐 loginApp called with orgid:', orgid, '-> cleaned:', cleanOrgid);
+    
     try {
-      if (orgid === undefined || orgid === null || orgid.trim() === '' || orgid === "null") {
-        return await this.buildUrlInstall();
-      } else {
-        const checkOrgidExists = await this.redisService.has(`haravan:multilanguage:app_install:${orgid}`);
-        if (!checkOrgidExists) {
-          return await this.buildUrlInstall(); 
-        }
+      // Safe null check
+      if (!cleanOrgid || cleanOrgid === 'null' || cleanOrgid === 'undefined' || cleanOrgid === '0') {
+        console.log('📝 No valid orgid, redirecting to LOGIN flow');
+        return await this.buildUrlLogin();
       }
-      return this.getHaravanConfig().frontEndUrl;
+      
+      // Check if app is already installed in Redis
+      const checkOrgidExists = await this.redisService.has(`haravan:multilanguage:app_install:${cleanOrgid}`);
+      console.log('🔍 Redis check for orgid:', cleanOrgid, '- exists:', checkOrgidExists);
+      
+      if (!checkOrgidExists) {
+        console.log('📝 Orgid not found in Redis, redirecting to install');
+        return await this.buildUrlInstall(); 
+      }
+      
+      // App already installed, redirect to frontend
+      console.log('✅ Orgid found, redirecting to frontend');
+      return `${this.getHaravanConfig().frontEndUrl}?orgid=${cleanOrgid}`;
+      
     } catch (error) {
-      return `Error logging in for organization ${orgid}: ${error.message}`;
+      console.error('❌ Login error:', error.message);
+      return `Error logging in for organization ${cleanOrgid}: ${error.message}`;
     }
   }
+  async processLoginCallback(code: string, req: Request | any, res: Response | any) {
+    if (!code) throw new BadRequestException("Missing Code");
+    
+    const hrvConfig = this.getHaravanConfig();
+    const params = new URLSearchParams({
+      code,
+      client_id: hrvConfig.clientId,
+      client_secret: hrvConfig.clientSecret,
+      grant_type: 'authorization_code',
+      redirect_uri: hrvConfig.loginCallbackUrl
+    });
+
+    try {
+      console.log('🔄 Exchanging login code for info...');
+      const response = await axios.post(hrvConfig.urlConnectToken, params.toString(), {
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+      });
+      
+      const { id_token } = response.data;
+      if (!id_token) throw new Error("No id_token returned");
+      
+      const decodedIDToken = jwt.decode(id_token) as Record<string, any>;
+      const { orgid } = decodedIDToken;
+      console.log('👤 Login callback for orgid:', orgid);
+      
+      // Check if app is installed
+      const exists = await this.redisService.has(`haravan:multilanguage:app_install:${orgid}`);
+      
+      if (exists) {
+        console.log('✅ App installed, refreshing token...');
+        // Refresh token logic
+        const appData = await this.redisService.get(`haravan:multilanguage:app_install:${orgid}`);
+        if (appData && appData.refresh_token) {
+          try {
+            console.log('🔄 Triggering value-added token refresh...');
+            const newAccessToken = await this.refreshToken(orgid, appData.refresh_token);
+            if (newAccessToken) {
+               console.log('✨ Token refreshed successfully on login');
+            }
+          } catch (e) {
+            console.warn('⚠️ Failed to auto-refresh token on login:', e.message);
+          }
+        }
+        
+        console.log('🚀 Redirecting to frontend URL');
+        // If called via AJAX, return JSON
+        if (req.xhr || req.headers.accept?.includes('application/json')) {
+           return res.json({ url: `${hrvConfig.frontEndUrl}?orgid=${orgid}` });
+        }
+        res.redirect(`${hrvConfig.frontEndUrl}?orgid=${orgid}`);
+      } else {
+        console.log('⚠️ App NOT installed, returning INSTALL URL');
+        const installUrl = await this.buildUrlInstall();
+        if (req.xhr || req.headers.accept?.includes('application/json')) {
+           return res.json({ url: installUrl });
+        }
+        res.redirect(installUrl);
+      }
+    } catch (error) {
+      console.error('❌ Login callback error:', error.message);
+      if (req.xhr || req.headers.accept?.includes('application/json')) {
+         return res.status(400).json({ error: error.message });
+      }
+      res.redirect(`${hrvConfig.frontEndUrl}/error?message=${encodeURIComponent(error.message)}`);
+    }
+  }
+
   async installApp(code: string, res): Promise<string> {
     if (!code) throw new BadRequestException("Missing Code");
 

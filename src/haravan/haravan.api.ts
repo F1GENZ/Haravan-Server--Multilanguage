@@ -287,6 +287,18 @@ export class HaravanAPIService {
     return response.data;
   }
 
+  async getProductsCount(token: string) {
+    if (!token) throw new BadRequestException("Token is required");
+    
+    const url = `https://apis.haravan.com/com/products/count.json`;
+    const response = await axios.get(url, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+
+    if (!response.data) throw new BadRequestException("Failed to fetch products count");
+    return response.data;
+  }
+
   async createProduct(token: string, values: any) {
     if (!token) throw new BadRequestException("Token is required");
     const response = await axios.post(`https://apis.haravan.com/com/products.json`, values, {

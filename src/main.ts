@@ -29,6 +29,11 @@ async function bootstrap() {
       }
     },
   });
+  
+  // Increase body parser limit for large translation payloads
+  app.use(express.json({ limit: '10mb' }));
+  app.use(express.urlencoded({ limit: '10mb', extended: true }));
+  
   app.use(cookieParser()); 
   app.setGlobalPrefix('api');
   const PORT = config.get('PORT') || 3333; 

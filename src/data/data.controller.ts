@@ -71,6 +71,18 @@ export class DataController {
 
   // Product endpoints
   @UseGuards(ShopAuthGuard)
+  @Get('products/count')
+  async getProductsCount(@ShopAuth() token) {
+    return {
+      success: true,
+      data: await this.dataService.getProductsCount(token),
+      status: 200,
+      errorCode: null,
+      errorMessage: null,
+    };
+  }
+
+  @UseGuards(ShopAuthGuard)
   @Get('products')
   async getProducts(@ShopAuth() token, @Query() query) {
     const { limit, page, published_status, collection_id } = query;

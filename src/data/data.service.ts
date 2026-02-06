@@ -40,6 +40,11 @@ export class DataService {
     return await this.haravanAPI.getProducts(token, params);
   }
 
+  async getProductsCount(token: string) {
+    if (!token) throw new UnauthorizedException();
+    return await this.haravanAPI.getProductsCount(token);
+  }
+
   async getProduct(token: string, id: string) {
     if (!token) throw new UnauthorizedException();
     if (!id) throw new BadRequestException("Product ID is required");
