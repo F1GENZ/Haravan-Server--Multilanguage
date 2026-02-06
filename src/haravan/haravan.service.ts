@@ -184,6 +184,9 @@ export class HaravanService {
       const existingApp = await this.redisService.get(`haravan:multilanguage:app_install:${orgid}`);
       // if (!existingApp) await this.haravanAPIService.subscribeWebhook(access_token);
 
+      // Initialize quota for new shops
+      const defaultQuota = parseInt(this.config.get('TRANSLATION_QUOTA_PER_SHOP') || '500', 10);
+      
       const tokenData = {
         access_token,
         refresh_token, 
@@ -191,8 +194,16 @@ export class HaravanService {
         orgsub,
         status: existingApp ? existingApp.status : 'trial',
         expires_at: existingApp ? existingApp.expires_at : Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 days
+        // Quota: keep existing or initialize new
+        quota_remaining: existingApp?.quota_remaining ?? defaultQuota,
+        quota_total: existingApp?.quota_total ?? defaultQuota,
       }; 
       await this.redisService.set(`haravan:multilanguage:app_install:${orgid}`, tokenData, 30 * 24 * 60 * 60); // 30 days
+      
+      if (!existingApp) {
+        console.log(`✅ [QUOTA] Initialized ${defaultQuota} translations for orgid=${orgid}`);
+      }
+      
       res.redirect(`${hrvConfig.frontEndUrl}?orgid=${orgid}`);
     } catch (error) {
       console.log(error);

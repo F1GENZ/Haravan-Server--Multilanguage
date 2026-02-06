@@ -75,17 +75,30 @@ export class TranslateService {
   }
 
   // ======== QUOTA MANAGEMENT ========
-  private getQuotaKey(orgid: string): string {
-    return `haravan:multilanguage:quota:${orgid}`;
+  private getAppInstallKey(orgid: string): string {
+    return `haravan:multilanguage:app_install:${orgid}`;
   }
 
   async getQuota(orgid: string): Promise<{ used: number; remaining: number; max: number }> {
-    const key = this.getQuotaKey(orgid);
-    const used = parseInt(await this.redisService.get(key) || '0', 10);
+    const key = this.getAppInstallKey(orgid);
+    const appData = await this.redisService.get(key);
+    
+    if (!appData) {
+      // App not installed, return default quota
+      return {
+        used: 0,
+        remaining: this.maxQuotaPerShop,
+        max: this.maxQuotaPerShop,
+      };
+    }
+    
+    const remaining = appData.quota_remaining ?? this.maxQuotaPerShop;
+    const total = appData.quota_total ?? this.maxQuotaPerShop;
+    
     return {
-      used,
-      remaining: Math.max(0, this.maxQuotaPerShop - used),
-      max: this.maxQuotaPerShop,
+      used: total - remaining,
+      remaining,
+      max: total,
     };
   }
 
@@ -95,10 +108,21 @@ export class TranslateService {
   }
 
   async useQuota(orgid: string, count: number = 1): Promise<void> {
-    const key = this.getQuotaKey(orgid);
-    const current = parseInt(await this.redisService.get(key) || '0', 10);
-    // Set quota with no expiry (persists forever, or until reset)
-    await this.redisService.set(key, current + count);
+    const key = this.getAppInstallKey(orgid);
+    const appData = await this.redisService.get(key);
+    
+    if (!appData) {
+      this.logger.warn(`⚠️ [QUOTA] App not installed for orgid=${orgid}`);
+      return;
+    }
+    
+    // Deduct quota
+    const newRemaining = Math.max(0, (appData.quota_remaining ?? this.maxQuotaPerShop) - count);
+    appData.quota_remaining = newRemaining;
+    
+    // Save back to Redis
+    await this.redisService.set(key, appData, 30 * 24 * 60 * 60); // 30 days
+    this.logger.log(`📊 [QUOTA] Used ${count}, remaining ${newRemaining} for orgid=${orgid}`);
   }
 
   // ======== TOKEN USAGE LOGGING ========
