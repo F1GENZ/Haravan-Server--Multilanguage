@@ -185,8 +185,11 @@ export class HaravanService {
       })
       if (!response.data) throw new BadRequestException();
       const { id_token, access_token, expires_in, refresh_token } = response.data;
+      console.log('🔑 Install: id_token received:', id_token ? `${id_token.substring(0, 50)}...` : 'MISSING');
       const decodedIDToken = await jwt.decode(id_token) as Record<string, any>;
+      console.log('🔍 Install: Decoded id_token:', JSON.stringify(decodedIDToken, null, 2));
       const { orgid, orgsub } = decodedIDToken;
+      console.log('📋 Install: Extracted orgid:', orgid, 'orgsub:', orgsub);
 
       // Check if app subscription already exists
       const existingApp = await this.redisService.get(`haravan:multilanguage:app_install:${orgid}`);
