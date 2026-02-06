@@ -61,31 +61,35 @@ export class HaravanService {
     return url;
   }
 
-  async loginApp(orgid: string | string[]): Promise<string> {
-    // Handle array case (when orgid is passed multiple times)
-    let cleanOrgid = Array.isArray(orgid) ? orgid.find(o => o && o !== 'null' && o !== 'undefined') : orgid;
-    cleanOrgid = cleanOrgid?.trim() || '';
+  async loginApp(orgid: string | string[]) {
+    // Handle array case
+    const rawOrgid = Array.isArray(orgid) ? orgid.find(o => o && o !== 'null' && o !== 'undefined') : orgid;
     
-    console.log('🔐 loginApp called with orgid:', orgid, '-> cleaned:', cleanOrgid);
+    if (!rawOrgid) throw new BadRequestException("Missing Org ID");
     
+    // Check if install logic should run
+    if (rawOrgid === 'null' || rawOrgid === 'undefined') {
+      return await this.buildUrlInstall(); 
+    }
+
+    const cleanOrgid = rawOrgid.replace(/['"]+/g, '');
     try {
-      // Safe null check
-      if (!cleanOrgid || cleanOrgid === 'null' || cleanOrgid === 'undefined' || cleanOrgid === '0') {
-        console.log('📝 No valid orgid, redirecting to LOGIN flow');
-        return await this.buildUrlLogin();
-      }
+      // Get app data to check status
+      const appData = await this.redisService.get(`haravan:multilanguage:app_install:${cleanOrgid}`);
       
-      // Check if app is already installed in Redis
-      const checkOrgidExists = await this.redisService.has(`haravan:multilanguage:app_install:${cleanOrgid}`);
-      console.log('🔍 Redis check for orgid:', cleanOrgid, '- exists:', checkOrgidExists);
+      console.log('🔍 Redis check for orgid:', cleanOrgid, '- exists:', !!appData);
       
-      if (!checkOrgidExists) {
-        console.log('📝 Orgid not found in Redis, redirecting to install');
+      // Conditions to force re-install:
+      // 1. App data not found
+      // 2. Status is 'needs_reinstall' (marked by cron/guard)
+      // 3. Status is 'unactive'
+      if (!appData || appData.status === 'needs_reinstall' || appData.status === 'unactive') {
+        console.log(`📝 App needs install/reinstall (Status: ${appData?.status}), redirecting to install`);
         return await this.buildUrlInstall(); 
       }
       
-      // App already installed, redirect to frontend
-      console.log('✅ Orgid found, redirecting to frontend');
+      // App installed and active, redirect to frontend
+      console.log('✅ Orgid found and active, redirecting to frontend');
       return `${this.getHaravanConfig().frontEndUrl}?orgid=${cleanOrgid}`;
       
     } catch (error) {
