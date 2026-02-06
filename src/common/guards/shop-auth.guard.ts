@@ -23,6 +23,12 @@ export class ShopAuthGuard implements CanActivate {
         throw new UnauthorizedException('Session expired, please login again');
       }
 
+      // Check if app needs reinstall (refresh token expired)
+      if (tokenData.status === 'needs_reinstall') {
+        this.logger.warn(`⚠️ App needs reinstall for orgid: ${orgid}`);
+        throw new UnauthorizedException('App needs reinstall. Please login again.');
+      }
+
       // Check if token needs refresh:
       // 1. No expires_at tracked (old token format)
       // 2. Token expires in less than 30 minutes

@@ -9,40 +9,48 @@ export class TokenService {
    * Get trial period information for a shop
    * Returns the number of days remaining in the trial period
    */
-  async getTrialInfo(shopDomain: string): Promise<{ daysRemaining: number; expiresAt: Date | null }> {
+  async getTrialInfo(orgid: string): Promise<{ daysRemaining: number; expiresAt: Date | null; status: string }> {
     try {
-      const trialKey = `trial:${shopDomain}`;
-      const expiresAt = await this.redisService.get<string>(trialKey);
+      // Get from app_install instead of separate trial key
+      const appData = await this.redisService.get(`haravan:multilanguage:app_install:${orgid}`);
       
-      if (!expiresAt) {
-        // No trial info found, return default 15 days for new shops
-        const defaultExpiry = new Date();
-        defaultExpiry.setDate(defaultExpiry.getDate() + 15);
-        
-        // Store in Redis
-        await this.redisService.set(trialKey, defaultExpiry.toISOString());
-        
+      if (!appData) {
+        // No app install found
         return {
-          daysRemaining: 15,
-          expiresAt: defaultExpiry
+          daysRemaining: 0,
+          expiresAt: null,
+          status: 'not_installed'
         };
       }
       
-      const expiryDate = new Date(expiresAt);
+      const { expires_at, status } = appData;
+      
+      if (!expires_at) {
+        // No expiry set, return default 7 days
+        return {
+          daysRemaining: 7,
+          expiresAt: null,
+          status: status || 'trial'
+        };
+      }
+      
+      const expiryDate = new Date(expires_at);
       const now = new Date();
       const diffTime = expiryDate.getTime() - now.getTime();
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
       
       return {
         daysRemaining: Math.max(0, diffDays), // Never return negative days
-        expiresAt: expiryDate
+        expiresAt: expiryDate,
+        status: status || 'trial'
       };
     } catch (error) {
       console.error('Error getting trial info:', error);
       // Return default on error
       return {
-        daysRemaining: 15,
-        expiresAt: null
+        daysRemaining: 0,
+        expiresAt: null,
+        status: 'error'
       };
     }
   }

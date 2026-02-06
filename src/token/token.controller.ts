@@ -6,15 +6,15 @@ export class TokenController {
   constructor(private readonly tokenService: TokenService) {}
 
   @Get('trial') 
-  async getTrialInfo(@Query('shop') shop: string) {
-    if (!shop) {
+  async getTrialInfo(@Query('orgid') orgid: string) {
+    if (!orgid) {
       return {
         success: false,
-        message: 'Shop domain is required!!'
+        message: 'orgid is required!!'
       }; 
     }
 
-    const trialInfo = await this.tokenService.getTrialInfo(shop);
+    const trialInfo = await this.tokenService.getTrialInfo(orgid);
     
     return {
       success: true,

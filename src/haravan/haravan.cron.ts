@@ -61,15 +61,31 @@ export class HaravanCronService {
             continue;
           }
 
+          // Check if already marked as needs_reinstall
+          if (status === 'needs_reinstall') {
+            this.logger.debug(`Skipping app marked for reinstall: ${orgid}`);
+            continue;
+          }
+
           // Refresh token
-          const access_token = await this.haravanService.refreshToken(orgid, refresh_token);
-          
-          if (access_token) {
-            successCount++;
-            this.logger.log(`✅ Refreshed token for orgid: ${orgid}`);
-          } else {
+          try {
+            const access_token = await this.haravanService.refreshToken(orgid, refresh_token);
+            
+            if (access_token) {
+              successCount++;
+              this.logger.log(`✅ Refreshed token for orgid: ${orgid}`);
+            } else {
+              throw new Error('No access token returned');
+            }
+          } catch (refreshError) {
             failCount++;
-            this.logger.warn(`❌ Failed to refresh token for orgid: ${orgid}`);
+            this.logger.warn(`❌ Failed to refresh token for orgid: ${orgid} - ${refreshError.message}`);
+            
+            // Mark app as needs_reinstall so frontend can redirect to login
+            appData.status = 'needs_reinstall';
+            appData.reinstall_reason = 'Refresh token expired';
+            await this.redisService.set(app, appData, 30 * 24 * 60 * 60);
+            this.logger.warn(`⚠️ Marked orgid=${orgid} for reinstall`);
           }
 
           // Rate limiting: wait 500ms between API calls
