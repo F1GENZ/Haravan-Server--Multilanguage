@@ -63,12 +63,11 @@ export class HaravanService {
 
   async loginApp(orgid: string | string[]) {
     // Handle array case
-    const rawOrgid = Array.isArray(orgid) ? orgid.find(o => o && o !== 'null' && o !== 'undefined') : orgid;
+    const rawOrgid = Array.isArray(orgid) ? orgid.find(o => o && o !== 'null' && o !== 'undefined' && o !== '') : orgid;
     
-    if (!rawOrgid) throw new BadRequestException("Missing Org ID");
-    
-    // Check if install logic should run
-    if (rawOrgid === 'null' || rawOrgid === 'undefined') {
+    // If no valid orgid, redirect to install
+    if (!rawOrgid || rawOrgid === 'null' || rawOrgid === 'undefined' || rawOrgid === '') {
+      console.log('📝 No valid orgid provided, redirecting to install');
       return await this.buildUrlInstall(); 
     }
 
