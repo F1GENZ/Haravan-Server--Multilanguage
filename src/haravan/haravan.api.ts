@@ -6,7 +6,7 @@ import axios from 'axios';
 import { console } from 'inspector';
 
 @Injectable()
-export class HaravanAPIService {
+export class HaravanAPIService { 
   constructor(private readonly configService: ConfigService) { }
 
   async subscribeWebhook(access_token) {
