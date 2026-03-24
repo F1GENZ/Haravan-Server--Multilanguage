@@ -126,9 +126,8 @@ export class TranslateService {
   }
 
   // ======== TOKEN USAGE LOGGING ========
-  // Gemini pricing (as of 2024): 
+  // Gemini pricing (as of 2025): 
   // - gemini-2.5-flash-lite: $0.075 per 1M input tokens, $0.30 per 1M output tokens
-  // - gemini-2.0-flash: $0.10 per 1M input tokens, $0.40 per 1M output tokens
   private logTokenUsage(type: 'TEXT' | 'HTML' | 'BATCH', orgid: string, usageMetadata: any): void {
     if (!usageMetadata) {
       this.logger.warn(`⚠️ [${type}] No usage metadata returned for orgid: ${orgid}`);
@@ -138,9 +137,9 @@ export class TranslateService {
     const { promptTokenCount, candidatesTokenCount, totalTokenCount } = usageMetadata;
     
     // Calculate estimated cost (in USD)
-    // Using gemini-2.5-flash-lite pricing for TEXT, gemini-2.0-flash for HTML/BATCH
-    const inputPricePerMillion = type === 'TEXT' ? 0.075 : 0.10;
-    const outputPricePerMillion = type === 'TEXT' ? 0.30 : 0.40;
+    // All types use gemini-2.5-flash-lite pricing
+    const inputPricePerMillion = 0.075;
+    const outputPricePerMillion = 0.30;
     
     const inputCost = (promptTokenCount / 1_000_000) * inputPricePerMillion;
     const outputCost = (candidatesTokenCount / 1_000_000) * outputPricePerMillion;
@@ -236,7 +235,7 @@ export class TranslateService {
     try {
       const result = await this.retryWithBackoff(async () => {
         const response = await ai.models.generateContent({
-          model: 'gemini-2.0-flash-lite',
+          model: 'gemini-2.5-flash-lite',
           contents: text,
           config: {
             systemInstruction: systemInstruction,
@@ -319,7 +318,7 @@ translated content here
     try {
       const response = await this.retryWithBackoff(async () => {
         return await ai.models.generateContent({
-          model: 'gemini-2.0-flash',
+          model: 'gemini-2.5-flash-lite',
           contents: inputData,
           config: {
             systemInstruction: systemInstruction,
@@ -416,7 +415,7 @@ translated content here
     try {
       let result = await this.retryWithBackoff(async () => {
         const response = await ai.models.generateContent({
-          model: 'gemini-2.0-flash',
+          model: 'gemini-2.5-flash-lite',
           contents: html,
           config: {
             systemInstruction: systemInstruction,
