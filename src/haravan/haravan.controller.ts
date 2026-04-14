@@ -1,4 +1,4 @@
-import { Controller, Response, Get, Query, Post, Request, UseGuards, Body } from '@nestjs/common';
+import { Controller, Response, Get, Query, Post, Request, Req, UseGuards, Body } from '@nestjs/common';
 import { HaravanService } from './haravan.service';
 import { ShopAuth } from '../common/decorators/shop-auth.decorator';
 import { ShopAuthGuard } from '../common/guards/shop-auth.guard';
@@ -11,6 +11,13 @@ export class HaravanController {
   async login(@Query() query) {
     const { orgid } = query;
     return await this.haravanService.loginApp(orgid);
+  }
+
+  @Get("/login/verify-hmac")
+  async verifyHmac(@Req() req) {
+    // Use raw query string to preserve original param order (Haravan != Shopify)
+    const rawQuery = req.url.split('?')[1] || '';
+    return await this.haravanService.verifyHmac(rawQuery);
   }
 
   @Post("/login/callback")

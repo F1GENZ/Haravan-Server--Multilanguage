@@ -12,7 +12,7 @@ export class ShopAuthGuard implements CanActivate {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const req = context.switchToHttp().getRequest();
     const res: Response = context.switchToHttp().getResponse();
-    const orgid = req.headers.orgid || req.query.orgid || req.body?.orgid;
+    const orgid = req.headers.orgid || req.headers['x-orgid'] || req.query.orgid || req.body?.orgid;
     
     if (!orgid) throw new BadRequestException('Missing orgid');
     

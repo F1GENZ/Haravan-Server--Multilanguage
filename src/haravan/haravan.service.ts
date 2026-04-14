@@ -4,6 +4,7 @@ import { RedisService } from '../redis/redis.service';
 import { HaravanAPIService } from './haravan.api';
 import axios from 'axios';
 import * as jwt from 'jsonwebtoken';
+import * as crypto from 'crypto';
 
 @Injectable()
 export class HaravanService {
@@ -61,12 +62,84 @@ export class HaravanService {
     return url;
   }
 
+  async verifyHmac(rawQueryString: string): Promise<{ valid: boolean; orgid?: string; reason?: string }> {
+    try {
+      const params = new URLSearchParams(rawQueryString);
+      const hmac = params.get('hmac');
+      const orgid = params.get('orgid');
+      const timestamp = params.get('timestamp');
+
+      if (!hmac || !orgid) {
+        return { valid: false, reason: 'Missing hmac or orgid' };
+      }
+
+      // 1. Rebuild message: ORIGINAL ORDER, exclude hmac (Haravan != Shopify)
+      const parts: string[] = [];
+      for (const [key, value] of params.entries()) {
+        if (key === 'hmac') continue;
+        parts.push(`${key}=${value}`);
+      }
+      const message = parts.join('&');
+
+      // 2. Compute HMAC-SHA256
+      const hrvConfig = this.getHaravanConfig();
+      const computed = crypto
+        .createHmac('sha256', hrvConfig.clientSecret)
+        .update(message)
+        .digest('hex');
+
+      // 3. Timing-safe compare
+      if (computed.length !== hmac.length) {
+        return { valid: false, reason: 'HMAC mismatch' };
+      }
+      const isValid = crypto.timingSafeEqual(Buffer.from(computed, 'hex'), Buffer.from(hmac, 'hex'));
+      if (!isValid) {
+        return { valid: false, reason: 'HMAC mismatch' };
+      }
+
+      // 4. Timestamp check (< 5 min)
+      if (timestamp) {
+        const ts = parseInt(timestamp, 10);
+        const now = Math.floor(Date.now() / 1000);
+        if (Math.abs(now - ts) > 300) {
+          return { valid: false, reason: 'Timestamp expired' };
+        }
+      }
+
+      // 5. Redis check — app installed and active
+      const appData = await this.redisService.get(`haravan:multilanguage:app_install:${orgid}`);
+      if (!appData) {
+        return { valid: false, reason: 'App not installed' };
+      }
+      if (appData.status === 'needs_reinstall' || appData.status === 'unactive') {
+        return { valid: false, reason: `App status: ${appData.status}` };
+      }
+
+      // 6. Auto-refresh token if needed
+      const THIRTY_MINUTES = 30 * 60 * 1000;
+      const needsRefresh = !appData.token_expires_at || (appData.token_expires_at - Date.now() < THIRTY_MINUTES);
+      if (needsRefresh && appData.refresh_token) {
+        try {
+          await this.refreshToken(orgid, appData.refresh_token);
+          console.log(`✅ HMAC verify: token refreshed for orgid=${orgid}`);
+        } catch (e) {
+          console.warn(`⚠️ HMAC verify: token refresh failed for orgid=${orgid}`);
+        }
+      }
+
+      console.log(`✅ HMAC verified for orgid=${orgid}`);
+      return { valid: true, orgid };
+    } catch (error) {
+      console.error('❌ HMAC verify error:', error.message);
+      return { valid: false, reason: error.message };
+    }
+  }
+
   async loginApp(orgid: string | string[]) {
     // Handle array case
     const rawOrgid = Array.isArray(orgid) ? orgid.find(o => o && o !== 'null' && o !== 'undefined' && o !== '') : orgid;
     
     // If no valid orgid, redirect to LOGIN (not install) to get id_token with orgid
-    // The login callback will check if shop exists in Redis
     if (!rawOrgid || rawOrgid === 'null' || rawOrgid === 'undefined' || rawOrgid === '') {
       console.log('📝 No valid orgid provided, redirecting to LOGIN to identify shop');
       return await this.buildUrlLogin(); 
@@ -74,7 +147,6 @@ export class HaravanService {
 
     const cleanOrgid = rawOrgid.replace(/['\"]+/g, '');
     try {
-      // Get app data to check status
       const appData = await this.redisService.get(`haravan:multilanguage:app_install:${cleanOrgid}`);
       
       console.log('🔍 Redis check for orgid:', cleanOrgid, '- exists:', !!appData, '- status:', appData?.status);
@@ -91,33 +163,10 @@ export class HaravanService {
         return await this.buildUrlInstall();
       }
       
-      // Condition 3: Token expired → try refresh first, only install if refresh fails
-      const now = Date.now();
-      const tokenExpired = appData.token_expires_at && appData.token_expires_at < now;
-      
-      if (tokenExpired) {
-        console.log('⏰ Token expired, attempting refresh...');
-        
-        if (appData.refresh_token) {
-          try {
-            const newToken = await this.refreshToken(cleanOrgid, appData.refresh_token);
-            if (newToken) {
-              console.log('✅ Token refreshed successfully, redirecting to frontend');
-              return `${this.getHaravanConfig().frontEndUrl}?orgid=${cleanOrgid}`;
-            }
-          } catch (refreshError) {
-            console.warn('⚠️ Token refresh failed:', refreshError.message);
-          }
-        }
-        
-        // Refresh failed or no refresh_token → need to re-authenticate
-        console.log('📝 Token refresh failed, redirecting to login');
-        return await this.buildUrlLogin();
-      }
-      
-      // App installed and active with valid token, redirect to frontend
-      console.log('✅ Orgid found and active, redirecting to frontend');
-      return `${this.getHaravanConfig().frontEndUrl}?orgid=${cleanOrgid}`;
+      // Condition 3: App installed & active → still require OAuth SSO proof
+      // Don't trust orgid param alone — user must prove identity via OAuth
+      console.log('📝 App found, requiring OAuth SSO verification');
+      return await this.buildUrlLogin();
       
     } catch (error) {
       console.error('❌ Login error:', error.message);
