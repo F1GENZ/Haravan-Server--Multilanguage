@@ -204,9 +204,20 @@ export class HaravanService {
       const exists = await this.redisService.has(`haravan:multilanguage:app_install:${orgid}`);
       
       if (exists) {
-        console.log('✅ App installed, refreshing token...');
-        // Refresh token logic
         const appData = await this.redisService.get(`haravan:multilanguage:app_install:${orgid}`);
+        
+        // If app needs reinstall or is unactive → redirect to install instead of frontend
+        if (appData && (appData.status === 'needs_reinstall' || appData.status === 'unactive')) {
+          console.log(`⚠️ App status is ${appData.status}, redirecting to install`);
+          const installUrl = await this.buildUrlInstall();
+          const acceptHeader = req.headers.accept || '';
+          if (acceptHeader.includes('application/json')) {
+            return res.json({ url: installUrl });
+          }
+          return res.redirect(installUrl);
+        }
+        
+        console.log('✅ App installed, refreshing token...');
         if (appData && appData.refresh_token) {
           try {
             console.log('🔄 Triggering value-added token refresh...');
@@ -288,14 +299,22 @@ export class HaravanService {
       const quotaToUse = isNewInstall ? trialQuota : (existingApp.quota_remaining ?? existingApp.quota_total ?? paidQuota);
       const quotaTotal = isNewInstall ? trialQuota : (existingApp.quota_total ?? paidQuota);
       
+      // Reset status on reinstall: needs_reinstall/unactive → trial
+      const resolvedStatus = (!existingApp || existingApp.status === 'needs_reinstall' || existingApp.status === 'unactive') 
+        ? 'trial' 
+        : existingApp.status;
+      const resolvedExpiresAt = (!existingApp || existingApp.status === 'needs_reinstall' || existingApp.status === 'unactive')
+        ? Date.now() + 7 * 24 * 60 * 60 * 1000
+        : existingApp.expires_at;
+
       const tokenData = {
         access_token,
         refresh_token, 
         token_expires_at: tokenExpiresAt,
         orgid,
         orgsub,
-        status: existingApp ? existingApp.status : 'trial',
-        expires_at: existingApp ? existingApp.expires_at : Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 days trial
+        status: resolvedStatus,
+        expires_at: resolvedExpiresAt, // 7 days trial for new/reinstall
         // Quota: keep existing or initialize new (trial = 10)
         quota_remaining: quotaToUse,
         quota_total: quotaTotal,
